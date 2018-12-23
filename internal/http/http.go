@@ -52,11 +52,11 @@ func assetOpenDefault(kind string, a *artifact.Artifact) (*asset, error) {
 	var op errors.Op = "http.assetOpenDefault"
 	f, err := os.Open(a.Path)
 	if err != nil {
-		return nil, err
+		return nil, errors.E(op, err)
 	}
 	s, err := f.Stat()
 	if err != nil {
-		return nil, err
+		return nil, errors.E(op, err)
 	}
 	if s.IsDir() {
 		return nil, errors.E(op, fmt.Errorf("%s: upload failed: the asset to upload can't be a directory", kind))

@@ -60,24 +60,26 @@ func checkSortDirection(mode string) error {
 }
 
 func buildChangelog(ctx *context.Context) ([]string, error) {
+	var op errors.Op = "changelog.buildChangelog"
 	log, err := getChangelog(ctx.Git.CurrentTag)
 	if err != nil {
-		return nil, err
+		return nil, errors.E(op, err)
 	}
 	var entries = strings.Split(log, "\n")
 	entries = entries[0 : len(entries)-1]
 	entries, err = filterEntries(ctx, entries)
 	if err != nil {
-		return entries, err
+		return entries, errors.E(op, err)
 	}
 	return sortEntries(ctx, entries), nil
 }
 
 func filterEntries(ctx *context.Context, entries []string) ([]string, error) {
+	var op errors.Op = "changelog.buildCfilterEntrieshangelog"
 	for _, filter := range ctx.Config.Changelog.Filters.Exclude {
 		r, err := regexp.Compile(filter)
 		if err != nil {
-			return entries, err
+			return entries, errors.E(op, err)
 		}
 		entries = remove(r, entries)
 	}
@@ -118,9 +120,10 @@ func extractCommitInfo(line string) (hash, msg string) {
 }
 
 func getChangelog(tag string) (string, error) {
+	var op errors.Op = "changelog.buildCfilterEntrieshangelog"
 	prev, err := previous(tag)
 	if err != nil {
-		return "", err
+		return "", errors.E(op, err)
 	}
 	if isSHA1(prev) {
 		return gitLog(prev, tag)

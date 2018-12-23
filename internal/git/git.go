@@ -38,5 +38,5 @@ func Clean(output string, err error) (string, error) {
 	if err != nil {
 		err = errors.E(op, strings.TrimSuffix(err.Error(), "\n"))
 	}
-	return output, err
+	return output, nil
 }

@@ -107,11 +107,12 @@ func (*Builder) Build(ctx *context.Context, build config.Build, options api.Opti
 }
 
 func processFlags(ctx *context.Context, flags []string, flagPrefix string) ([]string, error) {
+	var op errors.Op = "golang.processFlags"
 	processed := make([]string, 0, len(flags))
 	for _, rawFlag := range flags {
 		flag, err := tmpl.New(ctx).Apply(rawFlag)
 		if err != nil {
-			return nil, err
+			return nil, errors.E(op, err)
 		}
 		processed = append(processed, flagPrefix+flag)
 	}
@@ -119,6 +120,7 @@ func processFlags(ctx *context.Context, flags []string, flagPrefix string) ([]st
 }
 
 func run(ctx *context.Context, command, env []string) error {
+	var op errors.Op = "golang.run"
 	/* #nosec */
 	var cmd = exec.CommandContext(ctx, command[0], command[1:]...)
 	var log = log.WithField("env", env).WithField("cmd", command)
@@ -127,7 +129,7 @@ func run(ctx *context.Context, command, env []string) error {
 	log.WithField("cmd", command).WithField("env", env).Debug("running")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		log.WithError(err).Debug("failed")
-		return fmt.Errorf(string(out))
+		return errors.E(op, err, string(out))
 	}
 	return nil
 }
