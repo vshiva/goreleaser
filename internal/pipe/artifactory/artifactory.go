@@ -7,8 +7,9 @@ import (
 	"io/ioutil"
 	h "net/http"
 
+	"github.com/goreleaser/goreleaser/pkg/errors"
+
 	"github.com/goreleaser/goreleaser/internal/http"
-	"github.com/goreleaser/goreleaser/internal/pipe"
 	"github.com/goreleaser/goreleaser/pkg/context"
 )
 
@@ -55,26 +56,27 @@ func (Pipe) Default(ctx *context.Context) error {
 //
 // Docs: https://www.jfrog.com/confluence/display/RTF/Artifactory+REST+API#ArtifactoryRESTAPI-Example-DeployinganArtifact
 func (Pipe) Publish(ctx *context.Context) error {
+	var op errors.Op = "artifactory.Publish"
 	if len(ctx.Config.Artifactories) == 0 {
-		return pipe.Skip("artifactory section is not configured")
+		return errors.Skip(op, "artifactory section is not configured")
 	}
 
 	// Check requirements for every instance we have configured.
 	// If not fulfilled, we can skip this pipeline
 	for _, instance := range ctx.Config.Artifactories {
 		instance := instance
-		if skip := http.CheckConfig(ctx, &instance, "artifactory"); skip != nil {
-			return pipe.Skip(skip.Error())
+		if err := http.CheckConfig(ctx, &instance, "artifactory"); err != nil {
+			return errors.E(op, err)
 		}
 	}
 
 	return http.Upload(ctx, ctx.Config.Artifactories, "artifactory", func(res *h.Response) error {
 		if err := checkResponse(res); err != nil {
-			return err
+			return errors.E(op, err)
 		}
 		var r artifactoryResponse
 		err := json.NewDecoder(res.Body).Decode(&r)
-		return err
+		return errors.E(op, err)
 	})
 
 }

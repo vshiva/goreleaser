@@ -5,19 +5,18 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/apex/log"
+	log "github.com/sirupsen/logrus"
 	"github.com/goreleaser/goreleaser/internal/artifact"
 	"github.com/goreleaser/goreleaser/internal/linux"
-	"github.com/goreleaser/goreleaser/internal/pipe"
 	"github.com/goreleaser/goreleaser/internal/semerrgroup"
 	"github.com/goreleaser/goreleaser/internal/tmpl"
 	"github.com/goreleaser/goreleaser/pkg/config"
 	"github.com/goreleaser/goreleaser/pkg/context"
+	"github.com/goreleaser/goreleaser/pkg/errors"
 	"github.com/goreleaser/nfpm"
 	_ "github.com/goreleaser/nfpm/deb" // blank import to register the format
 	_ "github.com/goreleaser/nfpm/rpm" // blank import to register the format
 	"github.com/imdario/mergo"
-	"github.com/pkg/errors"
 )
 
 const defaultNameTemplate = "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
@@ -46,10 +45,11 @@ func (Pipe) Default(ctx *context.Context) error {
 
 // Run the pipe
 func (Pipe) Run(ctx *context.Context) error {
+	var op errors.Op = "nfpm.Run"
 	if len(ctx.Config.NFPM.Formats) == 0 {
-		return pipe.Skip("no output formats configured")
+		return errors.Skip(op,"no output formats configured")
 	}
-	return doRun(ctx)
+	return errors.E(op, doRun(ctx))
 }
 
 func doRun(ctx *context.Context) error {
@@ -87,6 +87,7 @@ func mergeOverrides(ctx *context.Context, format string) (*config.NFPMOverridabl
 }
 
 func create(ctx *context.Context, format, arch string, binaries []artifact.Artifact) error {
+	var op errors.Op = "nfpm.create"
 	overrided, err := mergeOverrides(ctx, format)
 	if err != nil {
 		return err
@@ -141,7 +142,7 @@ func create(ctx *context.Context, format, arch string, binaries []artifact.Artif
 	}
 
 	if err = nfpm.Validate(info); err != nil {
-		return errors.Wrap(err, "invalid nfpm config")
+		return errors.E(op,err, "invalid nfpm config")
 	}
 
 	packager, err := nfpm.Get(format)
@@ -157,10 +158,10 @@ func create(ctx *context.Context, format, arch string, binaries []artifact.Artif
 	}
 	defer w.Close() // nolint: errcheck
 	if err := packager.Package(nfpm.WithDefaults(info), w); err != nil {
-		return errors.Wrap(err, "nfpm failed")
+		return errors.E(op, err, "nfpm failed")
 	}
 	if err := w.Close(); err != nil {
-		return errors.Wrap(err, "could not close package file")
+		return errors.E(op, err, "could not close package file")
 	}
 	ctx.Artifacts.Add(artifact.Artifact{
 		Type:   artifact.LinuxPackage,

@@ -5,6 +5,8 @@ import (
 	"fmt"
 )
 
+// XXX
+
 // ErrInvalidVersionFormat is return when the version isnt in a valid format
 type ErrInvalidVersionFormat struct {
 	version string

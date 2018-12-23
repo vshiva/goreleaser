@@ -2,7 +2,6 @@
 package changelog
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
@@ -10,15 +9,11 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/apex/log"
-
 	"github.com/goreleaser/goreleaser/internal/git"
-	"github.com/goreleaser/goreleaser/internal/pipe"
 	"github.com/goreleaser/goreleaser/pkg/context"
+	"github.com/goreleaser/goreleaser/pkg/errors"
+	log "github.com/sirupsen/logrus"
 )
-
-// ErrInvalidSortDirection happens when the sort order is invalid
-var ErrInvalidSortDirection = errors.New("invalid sort direction")
 
 // Pipe for checksums
 type Pipe struct{}
@@ -29,23 +24,27 @@ func (Pipe) String() string {
 
 // Run the pipe
 func (Pipe) Run(ctx *context.Context) error {
+	var op errors.Op = "changelog.Run"
 	if ctx.ReleaseNotes != "" {
-		return pipe.Skip("release notes already provided via --release-notes")
+		return errors.Skip(op, "release notes already provided via --release-notes")
 	}
 	if ctx.Snapshot {
-		return pipe.Skip("not available for snapshots")
+		return errors.Skip(op, "not available for snapshots")
 	}
 	if err := checkSortDirection(ctx.Config.Changelog.Sort); err != nil {
-		return err
+		return errors.E(op, err)
 	}
 	entries, err := buildChangelog(ctx)
 	if err != nil {
-		return err
+		return errors.E(op, err)
 	}
 	ctx.ReleaseNotes = fmt.Sprintf("## Changelog\n\n%v\n", strings.Join(entries, "\n"))
 	var path = filepath.Join(ctx.Config.Dist, "CHANGELOG.md")
 	log.WithField("changelog", path).Info("writing")
-	return ioutil.WriteFile(path, []byte(ctx.ReleaseNotes), 0644)
+	if err := ioutil.WriteFile(path, []byte(ctx.ReleaseNotes), 0644); err != nil {
+		return errors.E(op, err)
+	}
+	return nil
 }
 
 func checkSortDirection(mode string) error {
@@ -57,7 +56,7 @@ func checkSortDirection(mode string) error {
 	case "desc":
 		return nil
 	}
-	return ErrInvalidSortDirection
+	return fmt.Errorf("invalid sort direction")
 }
 
 func buildChangelog(ctx *context.Context) ([]string, error) {

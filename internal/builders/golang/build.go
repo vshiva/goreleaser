@@ -9,13 +9,13 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/apex/log"
 	"github.com/goreleaser/goreleaser/internal/artifact"
 	"github.com/goreleaser/goreleaser/internal/tmpl"
 	api "github.com/goreleaser/goreleaser/pkg/build"
 	"github.com/goreleaser/goreleaser/pkg/config"
 	"github.com/goreleaser/goreleaser/pkg/context"
-	"github.com/pkg/errors"
+	"github.com/goreleaser/goreleaser/pkg/errors"
+	log "github.com/sirupsen/logrus"
 )
 
 // Default builder instance
@@ -55,6 +55,7 @@ func (*Builder) WithDefaults(build config.Build) config.Build {
 
 // Build builds a golang build
 func (*Builder) Build(ctx *context.Context, build config.Build, options api.Options) error {
+	const op errors.Op = "golang.Build"
 	if err := checkMain(build); err != nil {
 		return err
 	}
@@ -64,19 +65,19 @@ func (*Builder) Build(ctx *context.Context, build config.Build, options api.Opti
 
 	asmflags, err := processFlags(ctx, build.Asmflags, "-asmflags=")
 	if err != nil {
-		return err
+		return errors.E(op, err, errors.KindBuildError)
 	}
 	cmd = append(cmd, asmflags...)
 
 	gcflags, err := processFlags(ctx, build.Gcflags, "-gcflags=")
 	if err != nil {
-		return err
+		return errors.E(op, err, errors.KindBuildError)
 	}
 	cmd = append(cmd, gcflags...)
 
 	ldflags, err := processFlags(ctx, build.Ldflags, "-ldflags=")
 	if err != nil {
-		return err
+		return errors.E(op, err, errors.KindBuildError)
 	}
 	cmd = append(cmd, ldflags...)
 
@@ -84,11 +85,11 @@ func (*Builder) Build(ctx *context.Context, build config.Build, options api.Opti
 
 	target, err := newBuildTarget(options.Target)
 	if err != nil {
-		return err
+		return errors.E(op, err, errors.KindBuildError)
 	}
 	var env = append(build.Env, target.Env()...)
 	if err := run(ctx, cmd, env); err != nil {
-		return errors.Wrapf(err, "failed to build for %s", options.Target)
+		return errors.E(op, err, errors.KindBuildError)
 	}
 	ctx.Artifacts.Add(artifact.Artifact{
 		Type:   artifact.Binary,
@@ -126,7 +127,7 @@ func run(ctx *context.Context, command, env []string) error {
 	log.WithField("cmd", command).WithField("env", env).Debug("running")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		log.WithError(err).Debug("failed")
-		return errors.New(string(out))
+		return fmt.Errorf(string(out))
 	}
 	return nil
 }
@@ -169,7 +170,7 @@ func checkMain(build config.Build) error {
 	if stat.IsDir() {
 		packs, err := parser.ParseDir(token.NewFileSet(), main, nil, 0)
 		if err != nil {
-			return errors.Wrapf(err, "failed to parse dir: %s", main)
+			return err
 		}
 		for _, pack := range packs {
 			for _, file := range pack.Files {
@@ -182,7 +183,7 @@ func checkMain(build config.Build) error {
 	}
 	file, err := parser.ParseFile(token.NewFileSet(), main, nil, 0)
 	if err != nil {
-		return errors.Wrapf(err, "failed to parse file: %s", main)
+		return err
 	}
 	if hasMain(file) {
 		return nil

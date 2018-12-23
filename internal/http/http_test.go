@@ -16,7 +16,7 @@ import (
 	"github.com/goreleaser/goreleaser/internal/artifact"
 	"github.com/goreleaser/goreleaser/pkg/config"
 	"github.com/goreleaser/goreleaser/pkg/context"
-	"github.com/pkg/errors"
+	"github.com/goreleaser/goreleaser/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
 

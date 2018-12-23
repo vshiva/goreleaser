@@ -9,7 +9,7 @@ import (
 	"github.com/Masterminds/semver"
 	"github.com/goreleaser/goreleaser/internal/artifact"
 	"github.com/goreleaser/goreleaser/pkg/context"
-	"github.com/pkg/errors"
+	"github.com/goreleaser/goreleaser/pkg/errors"
 )
 
 // Template holds data that can be applied to a template string
@@ -77,6 +77,7 @@ func (t *Template) WithArtifact(a artifact.Artifact, replacements map[string]str
 
 // Apply applies the given string against the fields stored in the template.
 func (t *Template) Apply(s string) (string, error) {
+	const op errors.Op = "tmpl.Apply"
 	var out bytes.Buffer
 	tmpl, err := template.New("tmpl").
 		Option("missingkey=error").
@@ -92,7 +93,7 @@ func (t *Template) Apply(s string) (string, error) {
 
 	sv, err := semver.NewVersion(t.fields[tag].(string))
 	if err != nil {
-		return "", errors.Wrap(err, "tmpl")
+		return "", errors.E(op, err, errors.KindSemVerError)
 	}
 	t.fields[major] = sv.Major()
 	t.fields[minor] = sv.Minor()

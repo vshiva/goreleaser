@@ -4,16 +4,16 @@ package env
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 
-	"github.com/goreleaser/goreleaser/internal/pipe"
 	"github.com/goreleaser/goreleaser/pkg/context"
+	"github.com/goreleaser/goreleaser/pkg/errors"
 	homedir "github.com/mitchellh/go-homedir"
-	"github.com/pkg/errors"
 )
 
 // ErrMissingToken indicates an error when GITHUB_TOKEN is missing in the environment
-var ErrMissingToken = errors.New("missing GITHUB_TOKEN")
+var ErrMissingToken = fmt.Errorf("missing GITHUB_TOKEN")
 
 // Pipe for env
 type Pipe struct{}
@@ -33,18 +33,19 @@ func (Pipe) Default(ctx *context.Context) error {
 
 // Run the pipe
 func (Pipe) Run(ctx *context.Context) error {
+	const op errors.Op = "env.Run"
 	token, err := loadEnv("GITHUB_TOKEN", ctx.Config.EnvFiles.GitHubToken)
 	ctx.Token = token
 	if ctx.SkipPublish {
-		return pipe.ErrSkipPublishEnabled
+		return errors.Skip(op, "publishing is disabled")
 	}
 	if ctx.Config.Release.Disable {
-		return pipe.Skip("release pipe is disabled")
+		return errors.Skip(op, "release pipe is disabled")
 	}
 	if ctx.Token == "" && err == nil {
-		return ErrMissingToken
+		return errors.E(op, ErrMissingToken)
 	}
-	return errors.Wrap(err, "failed to load github token")
+	return errors.E(op, err)
 }
 
 func loadEnv(env, path string) (string, error) {

@@ -5,9 +5,9 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/apex/log"
 	"github.com/fatih/color"
 	"github.com/goreleaser/goreleaser/pkg/context"
+	log "github.com/sirupsen/logrus"
 )
 
 // Pipe is a global hook pipe

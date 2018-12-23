@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/apex/log"
+	log "github.com/sirupsen/logrus"
 	"github.com/goreleaser/goreleaser/internal/artifact"
 	"github.com/goreleaser/goreleaser/internal/testlib"
 	"github.com/goreleaser/goreleaser/pkg/config"

@@ -4,18 +4,19 @@ package scoop
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/goreleaser/goreleaser/internal/artifact"
 	"github.com/goreleaser/goreleaser/internal/client"
-	"github.com/goreleaser/goreleaser/internal/pipe"
 	"github.com/goreleaser/goreleaser/internal/tmpl"
 	"github.com/goreleaser/goreleaser/pkg/context"
+	"github.com/goreleaser/goreleaser/pkg/errors"
 )
 
+// XXX
+
 // ErrNoWindows when there is no build for windows (goos doesn't contain windows)
-var ErrNoWindows = errors.New("scoop requires a windows build")
+var ErrNoWindows = fmt.Errorf("scoop requires a windows build")
 
 // Pipe for build
 type Pipe struct{}
@@ -26,11 +27,12 @@ func (Pipe) String() string {
 
 // Publish scoop manifest
 func (Pipe) Publish(ctx *context.Context) error {
+	var op errors.Op = "scoop.Publish"
 	client, err := client.NewGitHub(ctx)
 	if err != nil {
 		return err
 	}
-	return doRun(ctx, client)
+	return errors.E(op, doRun(ctx, client))
 }
 
 // Default sets the pipe defaults
@@ -56,11 +58,12 @@ func (Pipe) Default(ctx *context.Context) error {
 }
 
 func doRun(ctx *context.Context, client client.Client) error {
+	var op errors.Op = "scoop.doRun"
 	if ctx.Config.Scoop.Bucket.Name == "" {
-		return pipe.Skip("scoop section is not configured")
+		return errors.Skip(op, "scoop section is not configured")
 	}
 	if ctx.Config.Archive.Format == "binary" {
-		return pipe.Skip("archive format is binary")
+		return errors.Skip(op, "archive format is binary")
 	}
 
 	var archives = ctx.Artifacts.Filter(
@@ -70,21 +73,21 @@ func doRun(ctx *context.Context, client client.Client) error {
 		),
 	).List()
 	if len(archives) == 0 {
-		return ErrNoWindows
+		return errors.Skip(op, ErrNoWindows)
 	}
 
 	var path = ctx.Config.Scoop.Name + ".json"
 
 	content, err := buildManifest(ctx, archives)
 	if err != nil {
-		return err
+		return errors.Skip(op, err)
 	}
 
 	if ctx.SkipPublish {
-		return pipe.ErrSkipPublishEnabled
+		return errors.Skip(op, "skip publish enabled")
 	}
 	if ctx.Config.Release.Draft {
-		return pipe.Skip("release is marked as draft")
+		return errors.Skip(op, "release is marked as draft")
 	}
 	return client.CreateFile(
 		ctx,
@@ -115,6 +118,7 @@ type Resource struct {
 }
 
 func buildManifest(ctx *context.Context, artifacts []artifact.Artifact) (bytes.Buffer, error) {
+	var op errors.Op = "scoop.buildManifest"
 	var result bytes.Buffer
 	var manifest = Manifest{
 		Version:      ctx.Version,
@@ -135,12 +139,12 @@ func buildManifest(ctx *context.Context, artifacts []artifact.Artifact) (bytes.B
 			WithArtifact(artifact, map[string]string{}).
 			Apply(ctx.Config.Scoop.URLTemplate)
 		if err != nil {
-			return result, err
+			return result, errors.E(op, err)
 		}
 
 		sum, err := artifact.Checksum()
 		if err != nil {
-			return result, err
+			return result, errors.E(op, err)
 		}
 
 		manifest.Architecture[arch] = Resource{
@@ -152,8 +156,8 @@ func buildManifest(ctx *context.Context, artifacts []artifact.Artifact) (bytes.B
 
 	data, err := json.MarshalIndent(manifest, "", "    ")
 	if err != nil {
-		return result, err
+		return result, errors.E(op, err)
 	}
 	_, err = result.Write(data)
-	return result, err
+	return result, errors.E(op, err)
 }

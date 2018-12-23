@@ -6,10 +6,10 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/apex/log"
 	"github.com/goreleaser/goreleaser/internal/artifact"
-	"github.com/goreleaser/goreleaser/internal/pipe"
 	"github.com/goreleaser/goreleaser/pkg/context"
+	"github.com/goreleaser/goreleaser/pkg/errors"
+	log "github.com/sirupsen/logrus"
 )
 
 // Pipe for artifact signing.
@@ -39,35 +39,37 @@ func (Pipe) Default(ctx *context.Context) error {
 
 // Run executes the Pipe.
 func (Pipe) Run(ctx *context.Context) error {
+	var op errors.Op = "sign.Run"
 	if ctx.SkipSign {
-		return pipe.ErrSkipSignEnabled
+		return errors.Skip(op, "signing disabled")
 	}
 
 	switch ctx.Config.Sign.Artifacts {
 	case "checksum":
-		return sign(ctx, ctx.Artifacts.Filter(artifact.ByType(artifact.Checksum)).List())
+		return errors.E(op, sign(ctx, ctx.Artifacts.Filter(artifact.ByType(artifact.Checksum)).List()))
 	case "all":
-		return sign(ctx, ctx.Artifacts.Filter(
+		return errors.E(op, sign(ctx, ctx.Artifacts.Filter(
 			artifact.Or(
 				artifact.ByType(artifact.UploadableArchive),
 				artifact.ByType(artifact.UploadableBinary),
 				artifact.ByType(artifact.Checksum),
 				artifact.ByType(artifact.LinuxPackage),
-			)).List())
+			)).List()))
 	case "none":
-		return pipe.ErrSkipSignEnabled
+		return errors.Skip(op, "signing disabled")
 	default:
-		return fmt.Errorf("invalid list of artifacts to sign: %s", ctx.Config.Sign.Artifacts)
+		return errors.E(op, fmt.Errorf("invalid list of artifacts to sign: %s", ctx.Config.Sign.Artifacts))
 	}
 }
 
 func sign(ctx *context.Context, artifacts []artifact.Artifact) error {
+	var op errors.Op = "sign.sign"
 	// nolint:prealloc
 	var sigs []string
 	for _, a := range artifacts {
 		sig, err := signone(ctx, a)
 		if err != nil {
-			return err
+			return errors.E(op, err)
 		}
 		sigs = append(sigs, sig)
 	}
@@ -82,6 +84,7 @@ func sign(ctx *context.Context, artifacts []artifact.Artifact) error {
 }
 
 func signone(ctx *context.Context, artifact artifact.Artifact) (string, error) {
+	var op errors.Op = "sign.signone"
 	cfg := ctx.Config.Sign
 
 	env := map[string]string{
@@ -103,7 +106,7 @@ func signone(ctx *context.Context, artifact artifact.Artifact) (string, error) {
 	log.WithField("cmd", cmd.Args).Debug("running")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("sign: %s failed with %q", cfg.Cmd, string(output))
+		return "", errors.E(op, fmt.Errorf("sign: %s failed with %q", cfg.Cmd, string(output)))
 	}
 	return filepath.Base(env["signature"]), nil
 }

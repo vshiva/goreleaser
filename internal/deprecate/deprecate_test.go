@@ -5,9 +5,8 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/apex/log"
-	"github.com/apex/log/handlers/cli"
 	"github.com/fatih/color"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,7 +17,6 @@ func TestNotice(t *testing.T) {
 	require.NoError(t, err)
 
 	color.NoColor = true
-	log.SetHandler(cli.New(f))
 
 	log.Info("first")
 	Notice("foo.bar.whatever")

@@ -10,9 +10,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/apex/log"
 	"github.com/campoy/unique"
 	zglob "github.com/mattn/go-zglob"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/goreleaser/goreleaser/internal/artifact"

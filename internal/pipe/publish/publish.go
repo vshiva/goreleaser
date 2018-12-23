@@ -4,9 +4,8 @@ package publish
 import (
 	"fmt"
 
-	"github.com/apex/log"
+	log "github.com/sirupsen/logrus"
 	"github.com/fatih/color"
-	"github.com/goreleaser/goreleaser/internal/pipe"
 	"github.com/goreleaser/goreleaser/internal/pipe/artifactory"
 	"github.com/goreleaser/goreleaser/internal/pipe/brew"
 	"github.com/goreleaser/goreleaser/internal/pipe/docker"
@@ -16,7 +15,7 @@ import (
 	"github.com/goreleaser/goreleaser/internal/pipe/scoop"
 	"github.com/goreleaser/goreleaser/internal/pipe/snapcraft"
 	"github.com/goreleaser/goreleaser/pkg/context"
-	"github.com/pkg/errors"
+	"github.com/goreleaser/goreleaser/pkg/errors"
 )
 
 // Pipe that publishes artifacts
@@ -50,26 +49,28 @@ var publishers = []Publisher{
 
 // Run the pipe
 func (Pipe) Run(ctx *context.Context) error {
+	var op errors.Op = "publish.Run"
 	if ctx.SkipPublish {
-		return pipe.ErrSkipPublishEnabled
+		return errors.Skip(op, "skip publish")
 	}
 	for _, publisher := range publishers {
 		log.Infof(color.New(color.Bold).Sprint(publisher.String()))
 		if err := handle(publisher.Publish(ctx)); err != nil {
-			return errors.Wrapf(err, "%s: failed to publish artifacts", publisher.String())
+			return errors.E(op, err, fmt.Sprintf("%s: failed to publish artifacts", publisher.String()))
 		}
 	}
 	return nil
 }
 
+// XXX
 // TODO: for now this is duplicated, we should have better error handling
 // eventually.
 func handle(err error) error {
 	if err == nil {
 		return nil
 	}
-	if pipe.IsSkip(err) {
-		log.WithField("reason", err.Error()).Warn("skipped")
+	if errors.IsSkip(err) {
+		log.WithField("reason", err.Error()).WithField("ops", errors.Ops(err)).Warn("skipped")
 		return nil
 	}
 	return err

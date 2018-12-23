@@ -1,22 +1,22 @@
 package release
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/goreleaser/goreleaser/internal/git"
 	"github.com/goreleaser/goreleaser/pkg/config"
-	"github.com/pkg/errors"
+	"github.com/goreleaser/goreleaser/pkg/errors"
 )
 
 // remoteRepo gets the repo name from the Git config.
 func remoteRepo() (result config.Repo, err error) {
+	var op errors.Op = "release.remoteRepo"
 	if !git.IsRepo() {
-		return result, errors.New("current folder is not a git repository")
+		return result, errors.E(op, "current folder is not a git repository")
 	}
 	out, err := git.Run("config", "--get", "remote.origin.url")
 	if err != nil {
-		return result, fmt.Errorf("repository doesn't have an `origin` remote")
+		return result, errors.E(op, "repository doesn't have an `origin` remote")
 	}
 	return extractRepoFromURL(out), nil
 }

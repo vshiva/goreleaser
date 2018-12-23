@@ -2,12 +2,12 @@
 package put
 
 import (
+	"fmt"
 	h "net/http"
 
 	"github.com/goreleaser/goreleaser/internal/http"
-	"github.com/goreleaser/goreleaser/internal/pipe"
 	"github.com/goreleaser/goreleaser/pkg/context"
-	"github.com/pkg/errors"
+	"github.com/goreleaser/goreleaser/pkg/errors"
 )
 
 // Pipe for http publishing
@@ -25,22 +25,23 @@ func (Pipe) Default(ctx *context.Context) error {
 
 // Publish artifacts
 func (Pipe) Publish(ctx *context.Context) error {
+	var op errors.Op = "http.Publish"
 	if len(ctx.Config.Puts) == 0 {
-		return pipe.Skip("put section is not configured")
+		return errors.Skip(op, "put section is not configured")
 	}
 
 	// Check requirements for every instance we have configured.
 	// If not fulfilled, we can skip this pipeline
 	for _, instance := range ctx.Config.Puts {
 		instance := instance
-		if skip := http.CheckConfig(ctx, &instance, "put"); skip != nil {
-			return pipe.Skip(skip.Error())
+		if err := http.CheckConfig(ctx, &instance, "put"); err != nil {
+			return errors.E(op, err)
 		}
 	}
 
 	return http.Upload(ctx, ctx.Config.Puts, "put", func(res *h.Response) error {
 		if c := res.StatusCode; c < 200 || 299 < c {
-			return errors.Errorf("unexpected http response status: %s", res.Status)
+			return errors.E(op, fmt.Sprintf("unexpected http response status: %s", res.Status))
 		}
 		return nil
 	})

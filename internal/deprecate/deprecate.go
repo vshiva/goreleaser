@@ -5,19 +5,14 @@ package deprecate
 import (
 	"strings"
 
-	"github.com/apex/log"
-	"github.com/apex/log/handlers/cli"
 	"github.com/fatih/color"
+	log "github.com/sirupsen/logrus"
 )
 
 const baseURL = "https://goreleaser.com/deprecations#"
 
 // Notice warns the user about the deprecation of the given property
 func Notice(property string) {
-	cli.Default.Padding += 3
-	defer func() {
-		cli.Default.Padding -= 3
-	}()
 	// replaces . and _ with -
 	url := baseURL + strings.NewReplacer(
 		".", "-",

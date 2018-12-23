@@ -9,25 +9,26 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/apex/log"
 	"github.com/goreleaser/goreleaser/internal/artifact"
 	"github.com/goreleaser/goreleaser/internal/linux"
-	"github.com/goreleaser/goreleaser/internal/pipe"
 	"github.com/goreleaser/goreleaser/internal/semerrgroup"
 	"github.com/goreleaser/goreleaser/internal/tmpl"
 	"github.com/goreleaser/goreleaser/pkg/context"
-	"github.com/pkg/errors"
+	"github.com/goreleaser/goreleaser/pkg/errors"
+	log "github.com/sirupsen/logrus"
 	yaml "gopkg.in/yaml.v2"
 )
 
+// XXX
+
 // ErrNoSnapcraft is shown when snapcraft cannot be found in $PATH
-var ErrNoSnapcraft = errors.New("snapcraft not present in $PATH")
+var ErrNoSnapcraft = fmt.Errorf("snapcraft not present in $PATH")
 
 // ErrNoDescription is shown when no description provided
-var ErrNoDescription = errors.New("no description provided for snapcraft")
+var ErrNoDescription = fmt.Errorf("no description provided for snapcraft")
 
 // ErrNoSummary is shown when no summary provided
-var ErrNoSummary = errors.New("no summary provided for snapcraft")
+var ErrNoSummary = fmt.Errorf("no summary provided for snapcraft")
 
 // Metadata to generate the snap package
 type Metadata struct {
@@ -68,18 +69,19 @@ func (Pipe) Default(ctx *context.Context) error {
 
 // Run the pipe
 func (Pipe) Run(ctx *context.Context) error {
+	var op errors.Op = "snapcraft.Run"
 	if ctx.Config.Snapcraft.Summary == "" && ctx.Config.Snapcraft.Description == "" {
-		return pipe.Skip("no summary nor description were provided")
+		return errors.Skip(op, "no summary nor description were provided")
 	}
 	if ctx.Config.Snapcraft.Summary == "" {
-		return ErrNoSummary
+		return errors.E(op, ErrNoSummary)
 	}
 	if ctx.Config.Snapcraft.Description == "" {
-		return ErrNoDescription
+		return errors.E(op, ErrNoDescription)
 	}
 	_, err := exec.LookPath("snapcraft")
 	if err != nil {
-		return ErrNoSnapcraft
+		return errors.E(op, ErrNoSnapcraft)
 	}
 
 	var g = semerrgroup.New(ctx.Parallelism)
@@ -99,11 +101,12 @@ func (Pipe) Run(ctx *context.Context) error {
 			return create(ctx, arch, binaries)
 		})
 	}
-	return g.Wait()
+	return errors.E(op, g.Wait())
 }
 
 // Publish packages
 func (Pipe) Publish(ctx *context.Context) error {
+	var op errors.Op = "snapcraft.Run"
 	snaps := ctx.Artifacts.Filter(artifact.ByType(artifact.PublishableSnapcraft)).List()
 	var g = semerrgroup.New(ctx.Parallelism)
 	for _, snap := range snaps {
@@ -112,10 +115,11 @@ func (Pipe) Publish(ctx *context.Context) error {
 			return push(ctx, snap)
 		})
 	}
-	return g.Wait()
+	return errors.E(op, g.Wait())
 }
 
 func create(ctx *context.Context, arch string, binaries []artifact.Artifact) error {
+	var op errors.Op = "snapcraft.Create"
 	var log = log.WithField("arch", arch)
 	folder, err := tmpl.New(ctx).
 		WithArtifact(binaries[0], ctx.Config.Snapcraft.Replacements).
@@ -174,10 +178,10 @@ func create(ctx *context.Context, arch string, binaries []artifact.Artifact) err
 			WithField("dst", destBinaryPath).
 			Debug("linking")
 		if err = os.Link(binary.Path, destBinaryPath); err != nil {
-			return errors.Wrap(err, "failed to link binary")
+			return errors.E(op, err, "failed to link binary")
 		}
 		if err := os.Chmod(destBinaryPath, 0555); err != nil {
-			return errors.Wrap(err, "failed to change binary permissions")
+			return errors.E(op, err, "failed to change binary permissions")
 		}
 	}
 
@@ -199,7 +203,7 @@ func create(ctx *context.Context, arch string, binaries []artifact.Artifact) err
 	/* #nosec */
 	var cmd = exec.CommandContext(ctx, "snapcraft", "pack", primeDir, "--output", snap)
 	if out, err = cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to generate snap package: %s", string(out))
+		return errors.E(op, fmt.Errorf("failed to generate snap package: %s", string(out)))
 	}
 	if !ctx.Config.Snapcraft.Publish {
 		return nil
@@ -216,12 +220,13 @@ func create(ctx *context.Context, arch string, binaries []artifact.Artifact) err
 }
 
 func push(ctx *context.Context, snap artifact.Artifact) error {
+	var op errors.Op = "snapcraft.push"
 	log.WithField("snap", snap.Name).Info("pushing snap")
 	// TODO: customize --release based on snap.Grade?
 	/* #nosec */
 	var cmd = exec.CommandContext(ctx, "snapcraft", "push", "--release=stable", snap.Path)
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to push %s package: %s", snap.Path, string(out))
+		return errors.E(op, fmt.Errorf("failed to push %s package: %s", snap.Path, string(out)))
 	}
 	snap.Type = artifact.Snapcraft
 	ctx.Artifacts.Add(snap)

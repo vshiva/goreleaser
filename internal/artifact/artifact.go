@@ -8,8 +8,8 @@ import (
 	"os"
 	"sync"
 
-	"github.com/apex/log"
-	"github.com/pkg/errors"
+	"github.com/goreleaser/goreleaser/pkg/errors"
+	log "github.com/sirupsen/logrus"
 )
 
 // Type defines the type of an artifact
@@ -71,16 +71,17 @@ type Artifact struct {
 
 // Checksum calculates the SHA256 checksum of the artifact.
 func (a Artifact) Checksum() (string, error) {
+	const op errors.Op = "artifact.Checksum"
 	log.Debugf("calculating sha256sum for %s", a.Path)
 	file, err := os.Open(a.Path)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to checksum")
+		return "", errors.E(op, err)
 	}
 	defer file.Close() // nolint: errcheck
 	var hash = sha256.New()
 	_, err = io.Copy(hash, file)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to checksum")
+		return "", errors.E(op, err)
 	}
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }

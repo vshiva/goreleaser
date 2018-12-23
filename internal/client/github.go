@@ -5,11 +5,11 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/apex/log"
 	"github.com/google/go-github/github"
 	"github.com/goreleaser/goreleaser/internal/tmpl"
 	"github.com/goreleaser/goreleaser/pkg/config"
 	"github.com/goreleaser/goreleaser/pkg/context"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 )
 

@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/apex/log"
+	log "github.com/sirupsen/logrus"
 )
 
 // IsRepo returns true if current folder is a git repository

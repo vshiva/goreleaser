@@ -8,9 +8,9 @@ import (
 	"testing"
 
 	"github.com/goreleaser/goreleaser/internal/artifact"
-	"github.com/goreleaser/goreleaser/internal/pipe"
 	"github.com/goreleaser/goreleaser/pkg/config"
 	"github.com/goreleaser/goreleaser/pkg/context"
+	"github.com/goreleaser/goreleaser/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -27,7 +27,7 @@ func TestRunPipeMissingInfo(t *testing.T) {
 		ErrNoDescription: {
 			Summary: "dummy summary",
 		},
-		pipe.Skip("no summary nor description were provided"): {},
+		errors.Skip("test", "no summary nor description were provided"): {},
 	} {
 		t.Run(fmt.Sprintf("testing if %v happens", eerr), func(t *testing.T) {
 			var ctx = &context.Context{

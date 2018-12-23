@@ -3,9 +3,9 @@ package testlib
 import (
 	"testing"
 
-	"github.com/goreleaser/goreleaser/internal/pipe"
+	"github.com/goreleaser/goreleaser/pkg/errors"
 )
 
 func TestAssertSkipped(t *testing.T) {
-	AssertSkipped(t, pipe.Skip("skip"))
+	AssertSkipped(t, errors.Skip("test", "skip"))
 }

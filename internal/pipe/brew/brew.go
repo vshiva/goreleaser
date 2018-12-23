@@ -2,7 +2,6 @@ package brew
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"path"
@@ -10,20 +9,22 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/apex/log"
 	"github.com/goreleaser/goreleaser/internal/artifact"
 	"github.com/goreleaser/goreleaser/internal/client"
-	"github.com/goreleaser/goreleaser/internal/pipe"
 	"github.com/goreleaser/goreleaser/internal/tmpl"
 	"github.com/goreleaser/goreleaser/pkg/config"
 	"github.com/goreleaser/goreleaser/pkg/context"
+	"github.com/goreleaser/goreleaser/pkg/errors"
+	log "github.com/sirupsen/logrus"
 )
 
+// XXX
+
 // ErrNoDarwin64Build when there is no build for darwin_amd64
-var ErrNoDarwin64Build = errors.New("brew tap requires one darwin amd64 build")
+var ErrNoDarwin64Build = fmt.Errorf("brew tap requires one darwin amd64 build")
 
 // ErrTooManyDarwin64Builds when there are too many builds for darwin_amd64
-var ErrTooManyDarwin64Builds = errors.New("brew tap requires at most one darwin amd64 build")
+var ErrTooManyDarwin64Builds = fmt.Errorf("brew tap requires at most one darwin amd64 build")
 
 // Pipe for brew deployment
 type Pipe struct{}
@@ -88,11 +89,12 @@ func contains(ss []string, s string) bool {
 }
 
 func doRun(ctx *context.Context, client client.Client) error {
+	var op errors.Op = "brew.doRun"
 	if ctx.Config.Brew.GitHub.Name == "" {
-		return pipe.Skip("brew section is not configured")
+		return errors.E(op, "brew section is not configured")
 	}
 	if getFormat(ctx) == "binary" {
-		return pipe.Skip("archive format is binary")
+		return errors.E(op, "archive format is binary")
 	}
 
 	var archives = ctx.Artifacts.Filter(
@@ -104,32 +106,32 @@ func doRun(ctx *context.Context, client client.Client) error {
 		),
 	).List()
 	if len(archives) == 0 {
-		return ErrNoDarwin64Build
+		return errors.E(op, ErrNoDarwin64Build)
 	}
 	if len(archives) > 1 {
-		return ErrTooManyDarwin64Builds
+		return errors.E(op, ErrTooManyDarwin64Builds)
 	}
 
 	content, err := buildFormula(ctx, archives[0])
 	if err != nil {
-		return err
+		return errors.E(op, err)
 	}
 
 	var filename = ctx.Config.Brew.Name + ".rb"
 	var path = filepath.Join(ctx.Config.Dist, filename)
 	log.WithField("formula", path).Info("writing")
 	if err := ioutil.WriteFile(path, content.Bytes(), 0644); err != nil {
-		return err
+		return errors.E(op, err)
 	}
 
 	if ctx.Config.Brew.SkipUpload {
-		return pipe.Skip("brew.skip_upload is set")
+		return errors.Skip(op, "brew.skip_upload is set")
 	}
 	if ctx.SkipPublish {
-		return pipe.ErrSkipPublishEnabled
+		return errors.Skip(op, "skip publish is enabled")
 	}
 	if ctx.Config.Release.Draft {
-		return pipe.Skip("release is marked as draft")
+		return errors.Skip(op, "release is marked as draft")
 	}
 
 	var gpath = ghFormulaPath(ctx.Config.Brew.Folder, filename)

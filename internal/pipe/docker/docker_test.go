@@ -12,9 +12,9 @@ import (
 	"testing"
 
 	"github.com/goreleaser/goreleaser/internal/artifact"
-	"github.com/goreleaser/goreleaser/internal/pipe"
 	"github.com/goreleaser/goreleaser/pkg/config"
 	"github.com/goreleaser/goreleaser/pkg/context"
+	"github.com/goreleaser/goreleaser/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -641,11 +641,11 @@ func TestDescription(t *testing.T) {
 }
 
 func TestNoDockers(t *testing.T) {
-	assert.True(t, pipe.IsSkip(Pipe{}.Run(context.New(config.Project{}))))
+	assert.True(t, errors.IsSkip(Pipe{}.Run(context.New(config.Project{}))))
 }
 
 func TestNoDockerWithoutImageName(t *testing.T) {
-	assert.True(t, pipe.IsSkip(Pipe{}.Run(context.New(config.Project{
+	assert.True(t, errors.IsSkip(Pipe{}.Run(context.New(config.Project{
 		Dockers: []config.Docker{
 			{
 				Goos: "linux",

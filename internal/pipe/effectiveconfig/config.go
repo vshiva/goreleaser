@@ -4,7 +4,7 @@ import (
 	"io/ioutil"
 	"path/filepath"
 
-	"github.com/apex/log"
+	log "github.com/sirupsen/logrus"
 	"github.com/goreleaser/goreleaser/pkg/context"
 	yaml "gopkg.in/yaml.v2"
 )

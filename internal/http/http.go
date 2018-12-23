@@ -13,14 +13,12 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/apex/log"
-	"github.com/pkg/errors"
-
 	"github.com/goreleaser/goreleaser/internal/artifact"
-	"github.com/goreleaser/goreleaser/internal/pipe"
 	"github.com/goreleaser/goreleaser/internal/semerrgroup"
 	"github.com/goreleaser/goreleaser/pkg/config"
 	"github.com/goreleaser/goreleaser/pkg/context"
+	"github.com/goreleaser/goreleaser/pkg/errors"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -51,6 +49,7 @@ func assetOpenReset() {
 }
 
 func assetOpenDefault(kind string, a *artifact.Artifact) (*asset, error) {
+	var op errors.Op = "http.assetOpenDefault"
 	f, err := os.Open(a.Path)
 	if err != nil {
 		return nil, err
@@ -60,7 +59,7 @@ func assetOpenDefault(kind string, a *artifact.Artifact) (*asset, error) {
 		return nil, err
 	}
 	if s.IsDir() {
-		return nil, errors.Errorf("%s: upload failed: the asset to upload can't be a directory", kind)
+		return nil, errors.E(op, fmt.Errorf("%s: upload failed: the asset to upload can't be a directory", kind))
 	}
 	return &asset{
 		ReadCloser: f,
@@ -84,34 +83,34 @@ func defaults(put *config.Put) {
 
 // CheckConfig validates a Put configuration returning a descriptive error when appropriate
 func CheckConfig(ctx *context.Context, put *config.Put, kind string) error {
-
+	var op errors.Op = "http.CheckConfig"
 	if put.Target == "" {
-		return misconfigured(kind, put, "missing target")
+		return misconfigured(op, kind, put, "missing target")
 	}
 
 	if put.Name == "" {
-		return misconfigured(kind, put, "missing name")
+		return misconfigured(op, kind, put, "missing name")
 	}
 
 	if put.Mode != ModeArchive && put.Mode != ModeBinary {
-		return misconfigured(kind, put, "mode must be 'binary' or 'archive'")
+		return misconfigured(op, kind, put, "mode must be 'binary' or 'archive'")
 	}
 
 	envName := fmt.Sprintf("%s_%s_SECRET", strings.ToUpper(kind), strings.ToUpper(put.Name))
 	if _, ok := ctx.Env[envName]; !ok {
-		return misconfigured(kind, put, fmt.Sprintf("missing %s environment variable", envName))
+		return misconfigured(op, kind, put, fmt.Sprintf("missing %s environment variable", envName))
 	}
 
 	if put.TrustedCerts != "" && !x509.NewCertPool().AppendCertsFromPEM([]byte(put.TrustedCerts)) {
-		return misconfigured(kind, put, "no certificate could be added from the specified trusted_certificates configuration")
+		return misconfigured(op, kind, put, "no certificate could be added from the specified trusted_certificates configuration")
 	}
 
 	return nil
 
 }
 
-func misconfigured(kind string, upload *config.Put, reason string) error {
-	return pipe.Skip(fmt.Sprintf("%s section '%s' is not configured properly (%s)", kind, upload.Name, reason))
+func misconfigured(op errors.Op, kind string, upload *config.Put, reason string) error {
+	return errors.E(op, fmt.Sprintf("%s section '%s' is not configured properly (%s)", kind, upload.Name, reason))
 }
 
 // ResponseChecker is a function capable of validating an http server response.
@@ -120,8 +119,9 @@ type ResponseChecker func(*h.Response) error
 
 // Upload does the actual uploading work
 func Upload(ctx *context.Context, puts []config.Put, kind string, check ResponseChecker) error {
+	var op errors.Op = "http.Upload"
 	if ctx.SkipPublish {
-		return pipe.ErrSkipPublishEnabled
+		return errors.Skip(op, "publishing is disabled")
 	}
 
 	// Handle every configured put
@@ -151,10 +151,10 @@ func Upload(ctx *context.Context, puts []config.Put, kind string, check Response
 				kind:   put.Name,
 				"mode": v,
 			}).Error(err.Error())
-			return err
+			return errors.E(op, err)
 		}
 		if err := uploadWithFilter(ctx, &put, artifact.Or(filters...), kind, check); err != nil {
-			return err
+			return errors.E(op, err)
 		}
 	}
 
@@ -176,6 +176,7 @@ func uploadWithFilter(ctx *context.Context, put *config.Put, filter artifact.Fil
 
 // uploadAsset uploads file to target and logs all actions
 func uploadAsset(ctx *context.Context, put *config.Put, artifact artifact.Artifact, kind string, check ResponseChecker) error {
+	const op errors.Op = "http.uploadAsset"
 	envBase := fmt.Sprintf("%s_%s_", strings.ToUpper(kind), strings.ToUpper(put.Name))
 	username := put.Username
 	if username == "" {
@@ -189,7 +190,7 @@ func uploadAsset(ctx *context.Context, put *config.Put, artifact artifact.Artifa
 	if err != nil {
 		msg := fmt.Sprintf("%s: error while building the target url", kind)
 		log.WithField("instance", put.Name).WithError(err).Error(msg)
-		return errors.Wrap(err, msg)
+		return errors.E(op, err)
 	}
 
 	// Handle the artifact
@@ -221,7 +222,7 @@ func uploadAsset(ctx *context.Context, put *config.Put, artifact artifact.Artifa
 			"instance": put.Name,
 			"username": username,
 		}).Error(msg)
-		return errors.Wrap(err, msg)
+		return errors.E(op, err)
 	}
 
 	log.WithFields(log.Fields{

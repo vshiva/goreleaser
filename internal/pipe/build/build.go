@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/apex/log"
-	"github.com/pkg/errors"
+	"github.com/goreleaser/goreleaser/pkg/errors"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/goreleaser/goreleaser/internal/semerrgroup"
 	"github.com/goreleaser/goreleaser/internal/tmpl"
@@ -69,8 +69,9 @@ func buildWithDefaults(ctx *context.Context, build config.Build) config.Build {
 }
 
 func runPipeOnBuild(ctx *context.Context, build config.Build) error {
+	var op errors.Op = "build.Run"
 	if err := runHook(ctx, build.Env, build.Hooks.Pre); err != nil {
-		return errors.Wrap(err, "pre hook failed")
+		return errors.E(op, err, errors.KindBuildError)
 	}
 	var g = semerrgroup.New(ctx.Parallelism)
 	for _, target := range build.Targets {
@@ -83,7 +84,10 @@ func runPipeOnBuild(ctx *context.Context, build config.Build) error {
 	if err := g.Wait(); err != nil {
 		return err
 	}
-	return errors.Wrap(runHook(ctx, build.Env, build.Hooks.Post), "post hook failed")
+	if err := runHook(ctx, build.Env, build.Hooks.Post); err != nil {
+		return errors.E(op, err, errors.KindBuildError)
+	}
+	return nil
 }
 
 func runHook(ctx *context.Context, env []string, hook string) error {
@@ -123,6 +127,7 @@ func extFor(target string) string {
 }
 
 func run(ctx *context.Context, command, env []string) error {
+	var op errors.Op = "build.run"
 	/* #nosec */
 	var cmd = exec.CommandContext(ctx, command[0], command[1:]...)
 	var log = log.WithField("env", env).WithField("cmd", command)
@@ -131,7 +136,7 @@ func run(ctx *context.Context, command, env []string) error {
 	log.WithField("cmd", command).WithField("env", env).Debug("running")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		log.WithError(err).Debug("failed")
-		return errors.New(string(out))
+		return errors.E(op, string(out))
 	}
 	return nil
 }

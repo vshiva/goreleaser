@@ -3,8 +3,8 @@ package golang
 import (
 	"fmt"
 
-	"github.com/apex/log"
 	"github.com/goreleaser/goreleaser/pkg/config"
+	log "github.com/sirupsen/logrus"
 )
 
 type target struct {

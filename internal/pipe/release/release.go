@@ -1,16 +1,16 @@
 package release
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/Masterminds/semver"
-	"github.com/apex/log"
 	"github.com/goreleaser/goreleaser/internal/artifact"
 	"github.com/goreleaser/goreleaser/internal/client"
-	"github.com/goreleaser/goreleaser/internal/pipe"
 	"github.com/goreleaser/goreleaser/internal/semerrgroup"
 	"github.com/goreleaser/goreleaser/pkg/context"
-	"github.com/pkg/errors"
+	"github.com/goreleaser/goreleaser/pkg/errors"
+	log "github.com/sirupsen/logrus"
 )
 
 // Pipe for github release
@@ -22,6 +22,7 @@ func (Pipe) String() string {
 
 // Default sets the pipe defaults
 func (Pipe) Default(ctx *context.Context) error {
+	var op errors.Op = "release.Default"
 	if ctx.Config.Release.NameTemplate == "" {
 		ctx.Config.Release.NameTemplate = "{{.Tag}}"
 	}
@@ -30,7 +31,7 @@ func (Pipe) Default(ctx *context.Context) error {
 	}
 	repo, err := remoteRepo()
 	if err != nil && !ctx.Snapshot {
-		return err
+		return errors.E(op, err)
 	}
 	ctx.Config.Release.GitHub = repo
 
@@ -39,7 +40,7 @@ func (Pipe) Default(ctx *context.Context) error {
 	case "auto":
 		sv, err := semver.NewVersion(ctx.Git.CurrentTag)
 		if err != nil {
-			return errors.Wrapf(err, "failed to parse tag %s as semver", ctx.Git.CurrentTag)
+			return errors.E(op, err, fmt.Sprintf("failed to parse tag %s as semver", ctx.Git.CurrentTag))
 		}
 
 		if sv.Prerelease() != "" {
@@ -63,8 +64,9 @@ func (Pipe) Publish(ctx *context.Context) error {
 }
 
 func doPublish(ctx *context.Context, c client.Client) error {
+	var op errors.Op = "release.doPublish"
 	if ctx.Config.Release.Disable {
-		return pipe.Skip("release pipe is disabled")
+		return errors.Skip(op, "release pipe is disabled")
 	}
 	log.WithField("tag", ctx.Git.CurrentTag).
 		WithField("repo", ctx.Config.Release.GitHub.String()).

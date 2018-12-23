@@ -8,14 +8,13 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin"
-	"github.com/apex/log"
-	"github.com/apex/log/handlers/cli"
 	"github.com/caarlos0/ctrlc"
 	"github.com/fatih/color"
-	"github.com/goreleaser/goreleaser/internal/pipe"
 	"github.com/goreleaser/goreleaser/internal/pipeline"
 	"github.com/goreleaser/goreleaser/pkg/config"
 	"github.com/goreleaser/goreleaser/pkg/context"
+	"github.com/goreleaser/goreleaser/pkg/errors"
+	log "github.com/sirupsen/logrus"
 )
 
 // nolint: gochecknoglobals
@@ -43,7 +42,6 @@ func main() {
 	if os.Getenv("CI") != "" {
 		color.NoColor = false
 	}
-	log.SetHandler(cli.Default)
 
 	fmt.Println()
 	defer fmt.Println()
@@ -91,7 +89,8 @@ func main() {
 			Timeout:      *timeout,
 		}
 		if err := releaseProject(options); err != nil {
-			log.WithError(err).Errorf(color.New(color.Bold).Sprintf("release failed after %0.2fs", time.Since(start).Seconds()))
+			log.WithError(err).WithField("ops", errors.Ops(err)).
+				Errorf(color.New(color.Bold).Sprintf("release failed after %0.2fs", time.Since(start).Seconds()))
 			terminate(1)
 			return
 		}
@@ -134,27 +133,20 @@ func releaseProject(options releaseOptions) error {
 }
 
 func doRelease(ctx *context.Context) error {
-	defer func() { cli.Default.Padding = 3 }()
-	var release = func() error {
+	return ctrlc.Default.Run(ctx, func() error {
 		for _, pipe := range pipeline.Pipeline {
-			cli.Default.Padding = 3
 			log.Infof(color.New(color.Bold).Sprint(strings.ToUpper(pipe.String())))
-			cli.Default.Padding = 6
 			if err := handle(pipe.Run(ctx)); err != nil {
 				return err
 			}
 		}
 		return nil
-	}
-	return ctrlc.Default.Run(ctx, release)
+	})
 }
 
 func handle(err error) error {
-	if err == nil {
-		return nil
-	}
-	if pipe.IsSkip(err) {
-		log.WithField("reason", err.Error()).Warn("skipped")
+	if err == nil || errors.IsSkip(err) {
+		log.WithField("ops", errors.Ops(err)).Warn(err)
 		return nil
 	}
 	return err

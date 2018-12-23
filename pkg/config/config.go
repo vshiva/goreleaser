@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/apex/log"
+	log "github.com/sirupsen/logrus"
 	yaml "gopkg.in/yaml.v2"
 )
 

@@ -7,7 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/apex/log"
+	log "github.com/sirupsen/logrus"
 	"github.com/goreleaser/goreleaser/pkg/context"
 )
 

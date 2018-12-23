@@ -5,11 +5,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/apex/log"
+	log "github.com/sirupsen/logrus"
+	"github.com/goreleaser/goreleaser/pkg/errors"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/goreleaser/goreleaser/internal/artifact"
-	"github.com/goreleaser/goreleaser/internal/pipe"
 	"github.com/goreleaser/goreleaser/internal/semerrgroup"
 	"github.com/goreleaser/goreleaser/internal/tmpl"
 	"github.com/goreleaser/goreleaser/pkg/config"
@@ -46,20 +46,22 @@ func (Pipe) Default(ctx *context.Context) error {
 
 // Publish to S3
 func (Pipe) Publish(ctx *context.Context) error {
+	var op errors.Op = "s3.Publish"
 	if len(ctx.Config.S3) == 0 {
-		return pipe.Skip("s3 section is not configured")
+		return errors.Skip(op, "s3 section is not configured")
 	}
 	var g = semerrgroup.New(ctx.Parallelism)
 	for _, conf := range ctx.Config.S3 {
 		conf := conf
 		g.Go(func() error {
-			return upload(ctx, conf)
+			return errors.E(op,upload(ctx, conf))
 		})
 	}
 	return g.Wait()
 }
 
 func upload(ctx *context.Context, conf config.S3) error {
+	var op errors.Op = "s3.upload"
 	builder := newSessionBuilder()
 	builder.Profile(conf.Profile)
 	if conf.Endpoint != "" {
@@ -73,7 +75,7 @@ func upload(ctx *context.Context, conf config.S3) error {
 	})
 	folder, err := tmpl.New(ctx).Apply(conf.Folder)
 	if err != nil {
-		return err
+		return errors.E(op,err)
 	}
 
 	var g = semerrgroup.New(ctx.Parallelism)
@@ -90,7 +92,7 @@ func upload(ctx *context.Context, conf config.S3) error {
 		g.Go(func() error {
 			f, err := os.Open(artifact.Path)
 			if err != nil {
-				return err
+				return errors.E(op,err)
 			}
 			log.WithFields(log.Fields{
 				"bucket":   conf.Bucket,
@@ -103,8 +105,8 @@ func upload(ctx *context.Context, conf config.S3) error {
 				Body:   f,
 				ACL:    aws.String(conf.ACL),
 			})
-			return err
+			return errors.E(op,err)
 		})
 	}
-	return g.Wait()
+	return errors.E(op,g.Wait())
 }
