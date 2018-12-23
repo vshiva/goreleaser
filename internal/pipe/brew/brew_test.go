@@ -204,8 +204,7 @@ func TestRunPipeNoDarwin64Build(t *testing.T) {
 		},
 	}
 	client := &DummyClient{}
-	assert.Equal(t, ErrNoDarwin64Build, doRun(ctx, client))
-	assert.False(t, client.CreatedFile)
+	assert.EqualError(t, doRun(ctx, client), "brew tap requires exactly one darwin amd64 build")
 }
 
 func TestRunPipeMultipleDarwin64Build(t *testing.T) {
@@ -237,7 +236,7 @@ func TestRunPipeMultipleDarwin64Build(t *testing.T) {
 		Type:   artifact.UploadableArchive,
 	})
 	client := &DummyClient{}
-	assert.Equal(t, ErrTooManyDarwin64Builds, doRun(ctx, client))
+	assert.EqualError(t, doRun(ctx, client), "brew tap requires exactly one darwin amd64 build")
 	assert.False(t, client.CreatedFile)
 }
 

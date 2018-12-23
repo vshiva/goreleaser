@@ -6,6 +6,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/fatih/color"
+	"github.com/goreleaser/goreleaser/pkg/errlog"
 	"github.com/goreleaser/goreleaser/internal/pipe/artifactory"
 	"github.com/goreleaser/goreleaser/internal/pipe/brew"
 	"github.com/goreleaser/goreleaser/internal/pipe/docker"
@@ -55,23 +56,9 @@ func (Pipe) Run(ctx *context.Context) error {
 	}
 	for _, publisher := range publishers {
 		log.Infof(color.New(color.Bold).Sprint(publisher.String()))
-		if err := handle(publisher.Publish(ctx)); err != nil {
+		if err := errlog.SystemErr(publisher.Publish(ctx)); err != nil {
 			return errors.E(op, err, fmt.Sprintf("%s: failed to publish artifacts", publisher.String()))
 		}
 	}
 	return nil
-}
-
-// XXX
-// TODO: for now this is duplicated, we should have better error handling
-// eventually.
-func handle(err error) error {
-	if err == nil {
-		return nil
-	}
-	if errors.IsSkip(err) {
-		log.WithField("reason", err.Error()).WithField("ops", errors.Ops(err)).Warn("skipped")
-		return nil
-	}
-	return err
 }

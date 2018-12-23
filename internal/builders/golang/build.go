@@ -57,7 +57,7 @@ func (*Builder) WithDefaults(build config.Build) config.Build {
 func (*Builder) Build(ctx *context.Context, build config.Build, options api.Options) error {
 	const op errors.Op = "golang.Build"
 	if err := checkMain(build); err != nil {
-		return err
+		return errors.E(op, err)
 	}
 	cmd := []string{"go", "build"}
 
@@ -159,18 +159,19 @@ func (b buildTarget) Env() []string {
 }
 
 func checkMain(build config.Build) error {
+	var op errors.Op = "golang.checkMain"
 	var main = build.Main
 	if main == "" {
 		main = "."
 	}
 	stat, ferr := os.Stat(main)
 	if ferr != nil {
-		return ferr
+		return errors.E(op, ferr)
 	}
 	if stat.IsDir() {
 		packs, err := parser.ParseDir(token.NewFileSet(), main, nil, 0)
 		if err != nil {
-			return err
+			return errors.E(op, err)
 		}
 		for _, pack := range packs {
 			for _, file := range pack.Files {
@@ -179,16 +180,16 @@ func checkMain(build config.Build) error {
 				}
 			}
 		}
-		return fmt.Errorf("build for %s does not contain a main function", build.Binary)
+		return errors.E(op, fmt.Errorf("build for %s does not contain a main function", build.Binary))
 	}
 	file, err := parser.ParseFile(token.NewFileSet(), main, nil, 0)
 	if err != nil {
-		return err
+		return errors.E(op, err)
 	}
 	if hasMain(file) {
 		return nil
 	}
-	return fmt.Errorf("build for %s does not contain a main function", build.Binary)
+	return errors.E(op, fmt.Errorf("build for %s does not contain a main function", build.Binary))
 }
 
 func hasMain(file *ast.File) bool {

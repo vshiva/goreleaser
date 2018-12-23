@@ -19,10 +19,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// ErrNoDocker is shown when docker cannot be found in $PATH
-// XXX
-var ErrNoDocker = fmt.Errorf("docker not present in $PATH")
-
 // Pipe for docker
 type Pipe struct{}
 
@@ -73,17 +69,18 @@ func (Pipe) Run(ctx *context.Context) error {
 	}
 	_, err := exec.LookPath("docker")
 	if err != nil {
-		return ErrNoDocker
+		return errors.E(op, "docker not present in $PATH")
 	}
-	return doRun(ctx)
+	return errors.E(op, doRun(ctx))
 }
 
 // Publish the docker images
 func (Pipe) Publish(ctx *context.Context) error {
+	var op errors.Op = "docker.Publish"
 	var images = ctx.Artifacts.Filter(artifact.ByType(artifact.PublishableDockerImage)).List()
 	for _, image := range images {
 		if err := dockerPush(ctx, image); err != nil {
-			return err
+			return errors.E(op, err)
 		}
 	}
 	return nil

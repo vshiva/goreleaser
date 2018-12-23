@@ -9,5 +9,5 @@ import (
 
 // AssertSkipped asserts that a pipe was skipped
 func AssertSkipped(t *testing.T, err error) {
-	assert.True(t, errors.IsSkip(err), "expected a pipe.ErrSkip but got %v", err)
+	assert.True(t, errors.IsSkip(err), "expected an errors.KindPipeSkipped but got %v", err)
 }

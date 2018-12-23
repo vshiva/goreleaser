@@ -13,7 +13,7 @@ import (
 	"github.com/goreleaser/goreleaser/internal/pipeline"
 	"github.com/goreleaser/goreleaser/pkg/config"
 	"github.com/goreleaser/goreleaser/pkg/context"
-	"github.com/goreleaser/goreleaser/pkg/errors"
+	"github.com/goreleaser/goreleaser/pkg/errlog"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -89,8 +89,7 @@ func main() {
 			Timeout:      *timeout,
 		}
 		if err := releaseProject(options); err != nil {
-			log.WithError(err).WithField("ops", errors.Ops(err)).
-				Errorf(color.New(color.Bold).Sprintf("release failed after %0.2fs", time.Since(start).Seconds()))
+			log.Errorf(color.New(color.Bold).Sprintf("release failed after %0.2fs", time.Since(start).Seconds()))
 			terminate(1)
 			return
 		}
@@ -136,23 +135,12 @@ func doRelease(ctx *context.Context) error {
 	return ctrlc.Default.Run(ctx, func() error {
 		for _, pipe := range pipeline.Pipeline {
 			log.Infof(color.New(color.Bold).Sprint(strings.ToUpper(pipe.String())))
-			if err := handle(pipe.Run(ctx)); err != nil {
+			if err := errlog.SystemErr(pipe.Run(ctx)); err != nil {
 				return err
 			}
 		}
 		return nil
 	})
-}
-
-func handle(err error) error {
-	if err == nil {
-		return nil
-	}
-	if  errors.IsSkip(err) {
-		log.WithField("ops", errors.Ops(err)).Warn(err)
-		return nil
-	}
-	return err
 }
 
 // InitProject creates an example goreleaser.yml in the current directory

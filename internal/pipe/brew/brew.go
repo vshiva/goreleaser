@@ -18,14 +18,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// XXX
-
-// ErrNoDarwin64Build when there is no build for darwin_amd64
-var ErrNoDarwin64Build = fmt.Errorf("brew tap requires one darwin amd64 build")
-
-// ErrTooManyDarwin64Builds when there are too many builds for darwin_amd64
-var ErrTooManyDarwin64Builds = fmt.Errorf("brew tap requires at most one darwin amd64 build")
-
 // Pipe for brew deployment
 type Pipe struct{}
 
@@ -105,11 +97,8 @@ func doRun(ctx *context.Context, client client.Client) error {
 			artifact.ByType(artifact.UploadableArchive),
 		),
 	).List()
-	if len(archives) == 0 {
-		return errors.E(op, ErrNoDarwin64Build)
-	}
-	if len(archives) > 1 {
-		return errors.E(op, ErrTooManyDarwin64Builds)
+	if len(archives) != 1 {
+		return errors.E(op, "brew tap requires exactly one darwin amd64 build")
 	}
 
 	content, err := buildFormula(ctx, archives[0])

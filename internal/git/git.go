@@ -2,10 +2,10 @@
 package git
 
 import (
-	"errors"
 	"os/exec"
 	"strings"
 
+	"github.com/goreleaser/goreleaser/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -17,6 +17,7 @@ func IsRepo() bool {
 
 // Run runs a git command and returns its output or errors
 func Run(args ...string) (string, error) {
+	var op errors.Op = "git.Run"
 	// TODO: use exex.CommandContext here and refactor.
 	/* #nosec */
 	var cmd = exec.Command("git", args...)
@@ -25,16 +26,17 @@ func Run(args ...string) (string, error) {
 	log.WithField("output", string(bts)).
 		Debug("git result")
 	if err != nil {
-		return "", errors.New(string(bts))
+		return "", errors.E(op, string(bts))
 	}
 	return string(bts), nil
 }
 
 // Clean the output
 func Clean(output string, err error) (string, error) {
+	var op errors.Op = "git.Clean"
 	output = strings.Replace(strings.Split(output, "\n")[0], "'", "", -1)
 	if err != nil {
-		err = errors.New(strings.TrimSuffix(err.Error(), "\n"))
+		err = errors.E(op, strings.TrimSuffix(err.Error(), "\n"))
 	}
 	return output, err
 }

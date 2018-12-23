@@ -30,10 +30,11 @@ func (Pipe) String() string {
 
 // Run the pipe
 func (Pipe) Run(ctx *context.Context) error {
+	var op errors.Op = "build.Run"
 	for _, build := range ctx.Config.Builds {
 		log.WithField("build", build).Debug("building")
 		if err := runPipeOnBuild(ctx, build); err != nil {
-			return err
+			return errors.E(op, err)
 		}
 	}
 	return nil
@@ -69,7 +70,7 @@ func buildWithDefaults(ctx *context.Context, build config.Build) config.Build {
 }
 
 func runPipeOnBuild(ctx *context.Context, build config.Build) error {
-	var op errors.Op = "build.Run"
+	var op errors.Op = "build.runPipeOnBuild"
 	if err := runHook(ctx, build.Env, build.Hooks.Pre); err != nil {
 		return errors.E(op, err, errors.KindBuildError)
 	}
@@ -82,41 +83,40 @@ func runPipeOnBuild(ctx *context.Context, build config.Build) error {
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return err
-	}
-	if err := runHook(ctx, build.Env, build.Hooks.Post); err != nil {
 		return errors.E(op, err, errors.KindBuildError)
 	}
-	return nil
+	return errors.E(op, runHook(ctx, build.Env, build.Hooks.Post), errors.KindBuildError)
 }
 
 func runHook(ctx *context.Context, env []string, hook string) error {
+	var op errors.Op = "build.runHook"
 	if hook == "" {
 		return nil
 	}
 	log.WithField("hook", hook).Info("running hook")
 	cmd := strings.Fields(hook)
-	return run(ctx, cmd, env)
+	return errors.E(op, run(ctx, cmd, env), errors.KindBuildError)
 }
 
 func doBuild(ctx *context.Context, build config.Build, target string) error {
+	var op errors.Op = "build.doBuild"
 	var ext = extFor(target)
 
 	binary, err := tmpl.New(ctx).Apply(build.Binary)
 	if err != nil {
-		return err
+		return errors.E(op, err, errors.KindBuildError)
 	}
 
 	build.Binary = binary
 	var name = build.Binary + ext
 	var path = filepath.Join(ctx.Config.Dist, target, name)
 	log.WithField("binary", path).Info("building")
-	return builders.For(build.Lang).Build(ctx, build, builders.Options{
+	return errors.E(op, builders.For(build.Lang).Build(ctx, build, builders.Options{
 		Target: target,
 		Name:   name,
 		Path:   path,
 		Ext:    ext,
-	})
+	}), errors.KindBuildError)
 }
 
 func extFor(target string) string {

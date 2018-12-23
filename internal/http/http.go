@@ -196,7 +196,7 @@ func uploadAsset(ctx *context.Context, put *config.Put, artifact artifact.Artifa
 	// Handle the artifact
 	asset, err := assetOpen(kind, &artifact)
 	if err != nil {
-		return err
+		return errors.E(op, err)
 	}
 	defer asset.ReadCloser.Close() // nolint: errcheck
 
@@ -210,7 +210,7 @@ func uploadAsset(ctx *context.Context, put *config.Put, artifact artifact.Artifa
 	if put.ChecksumHeader != "" {
 		sum, err := artifact.Checksum()
 		if err != nil {
-			return err
+			return errors.E(op, err)
 		}
 		headers[put.ChecksumHeader] = sum
 	}
@@ -235,19 +235,22 @@ func uploadAsset(ctx *context.Context, put *config.Put, artifact artifact.Artifa
 
 // uploadAssetToServer uploads the asset file to target
 func uploadAssetToServer(ctx *context.Context, put *config.Put, target, username, secret string, headers map[string]string, a *asset, check ResponseChecker) (*h.Response, error) {
+	const op errors.Op = "http.uploadAssetToServer"
 	req, err := newUploadRequest(target, username, secret, headers, a)
 	if err != nil {
-		return nil, err
+		return nil, errors.E(op, err)
 	}
 
-	return executeHTTPRequest(ctx, put, req, check)
+	resp, err := executeHTTPRequest(ctx, put, req, check)
+	return resp, errors.E(op, err)
 }
 
 // newUploadRequest creates a new h.Request for uploading
 func newUploadRequest(target, username, secret string, headers map[string]string, a *asset) (*h.Request, error) {
+	const op errors.Op = "http.newUploadRequest"
 	req, err := h.NewRequest("PUT", target, a.ReadCloser)
 	if err != nil {
-		return nil, err
+		return nil, errors.E(op, err)
 	}
 	req.ContentLength = a.Size
 	req.SetBasicAuth(username, secret)
@@ -256,10 +259,11 @@ func newUploadRequest(target, username, secret string, headers map[string]string
 		req.Header.Add(k, v)
 	}
 
-	return req, err
+	return req, errors.E(op, err)
 }
 
 func getHTTPClient(put *config.Put) (*h.Client, error) {
+	const op errors.Op = "http.getHTTPClient"
 	if put.TrustedCerts == "" {
 		return h.DefaultClient, nil
 	}
@@ -269,7 +273,7 @@ func getHTTPClient(put *config.Put) (*h.Client, error) {
 			// on windows ignore errors until golang issues #16736 & #18609 get fixed
 			pool = x509.NewCertPool()
 		} else {
-			return nil, err
+			return nil, errors.E(op, err)
 		}
 	}
 	pool.AppendCertsFromPEM([]byte(put.TrustedCerts)) // already validated certs checked by CheckConfig
@@ -284,9 +288,10 @@ func getHTTPClient(put *config.Put) (*h.Client, error) {
 
 // executeHTTPRequest processes the http call with respect of context ctx
 func executeHTTPRequest(ctx *context.Context, put *config.Put, req *h.Request, check ResponseChecker) (*h.Response, error) {
+	const op errors.Op = "http.executeHTTPRequest"
 	client, err := getHTTPClient(put)
 	if err != nil {
-		return nil, err
+		return nil, errors.E(op, err)
 	}
 	log.Debugf("executing request: %s %s (headers: %v)", req.Method, req.URL, req.Header)
 	resp, err := client.Do(req)
@@ -298,7 +303,7 @@ func executeHTTPRequest(ctx *context.Context, put *config.Put, req *h.Request, c
 			return nil, ctx.Err()
 		default:
 		}
-		return nil, err
+		return nil, errors.E(op, err)
 	}
 
 	defer resp.Body.Close() // nolint: errcheck
@@ -307,10 +312,10 @@ func executeHTTPRequest(ctx *context.Context, put *config.Put, req *h.Request, c
 	if err != nil {
 		// even though there was an error, we still return the response
 		// in case the caller wants to inspect it further
-		return resp, err
+		return resp, errors.E(op, err)
 	}
 
-	return resp, err
+	return resp, errors.E(op, err)
 }
 
 // targetData is used as a template struct for
@@ -329,6 +334,7 @@ type targetData struct {
 // resolveTargetTemplate returns the resolved target template with replaced variables
 // Those variables can be replaced by the given context, goos, goarch, goarm and more
 func resolveTargetTemplate(ctx *context.Context, put *config.Put, artifact artifact.Artifact) (string, error) {
+	const op errors.Op = "http.resolveTargetTemplate"
 	data := targetData{
 		Version:     ctx.Version,
 		Tag:         ctx.Git.CurrentTag,
@@ -344,10 +350,10 @@ func resolveTargetTemplate(ctx *context.Context, put *config.Put, artifact artif
 	var out bytes.Buffer
 	t, err := template.New(ctx.Config.ProjectName).Parse(put.Target)
 	if err != nil {
-		return "", err
+		return "", errors.E(op, err)
 	}
 	err = t.Execute(&out, data)
-	return out.String(), err
+	return out.String(), errors.E(op, err)
 }
 
 func replace(replacements map[string]string, original string) string {

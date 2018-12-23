@@ -106,6 +106,7 @@ type Error struct {
 // body, or a JSON response body that maps to ErrorResponse. Any other
 // response body will be silently ignored.
 func checkResponse(r *h.Response) error {
+	var op errors.Op = "artifactory.checkResponse"
 	if c := r.StatusCode; 200 <= c && c <= 299 {
 		return nil
 	}
@@ -114,8 +115,8 @@ func checkResponse(r *h.Response) error {
 	if err == nil && data != nil {
 		err := json.Unmarshal(data, errorResponse)
 		if err != nil {
-			return err
+			return errors.E(op, err)
 		}
 	}
-	return errorResponse
+	return errors.E(op, errorResponse)
 }

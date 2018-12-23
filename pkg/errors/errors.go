@@ -25,6 +25,8 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -43,9 +45,10 @@ const (
 // as to what caused this error so that
 // callers can implement logic around it.
 type Error struct {
-	Kind int
-	Op   Op
-	Err  error
+	Kind     int
+	Op       Op
+	Err      error
+	Severity logrus.Level
 }
 
 // Error returns the underlying error's
@@ -67,6 +70,7 @@ func (o Op) String() string {
 
 func Skip(op Op, args ...interface{}) error {
 	args = append(args, KindPipeSkipped)
+	args = append(args, logrus.WarnLevel)
 	return E(op, args...)
 }
 
@@ -100,6 +104,8 @@ func E(op Op, args ...interface{}) error {
 			} else {
 				e.Err = errors.New(a)
 			}
+		case logrus.Level:
+			e.Severity = a
 		case int:
 			e.Kind = a
 		}
@@ -165,4 +171,20 @@ func Ops(err error) []Op {
 	}
 
 	return ops
+}
+
+// Severity returns the log level of an error
+// if none exists, then the level is Error because
+// it is an unexpected.
+func Severity(err error) logrus.Level {
+	e, ok := err.(Error)
+	if !ok {
+		return logrus.ErrorLevel
+	}
+
+	if e.Severity < logrus.ErrorLevel {
+		return Severity(e.Err)
+	}
+
+	return e.Severity
 }

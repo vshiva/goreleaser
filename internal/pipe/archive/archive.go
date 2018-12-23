@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/goreleaser/goreleaser/pkg/errors"
+
 	"github.com/campoy/unique"
 	zglob "github.com/mattn/go-zglob"
 	log "github.com/sirupsen/logrus"
@@ -66,6 +68,7 @@ func (Pipe) Default(ctx *context.Context) error {
 
 // Run the pipe
 func (Pipe) Run(ctx *context.Context) error {
+	var op errors.Op = "archive.Run"
 	var g errgroup.Group // TODO: use semerrgroup here
 	var filtered = ctx.Artifacts.Filter(artifact.ByType(artifact.Binary))
 	for group, artifacts := range filtered.GroupByPlatform() {
@@ -78,27 +81,28 @@ func (Pipe) Run(ctx *context.Context) error {
 			return create(ctx, artifacts)
 		})
 	}
-	return g.Wait()
+	return errors.E(op, g.Wait())
 }
 
 func create(ctx *context.Context, binaries []artifact.Artifact) error {
+	var op errors.Op = "archive.create"
 	var format = packageFormat(ctx, binaries[0].Goos)
 	folder, err := tmpl.New(ctx).
 		WithArtifact(binaries[0], ctx.Config.Archive.Replacements).
 		Apply(ctx.Config.Archive.NameTemplate)
 	if err != nil {
-		return err
+		return errors.E(op, err)
 	}
 	archivePath := filepath.Join(ctx.Config.Dist, folder+"."+format)
 	lock.Lock()
 	if _, err = os.Stat(archivePath); !os.IsNotExist(err) {
 		lock.Unlock()
-		return fmt.Errorf("archive named %s already exists. Check your archive name template", archivePath)
+		return errors.E(op, fmt.Sprintf("archive named %s already exists. Check your archive name template", archivePath))
 	}
 	archiveFile, err := os.Create(archivePath)
 	if err != nil {
 		lock.Unlock()
-		return fmt.Errorf("failed to create directory %s: %s", archivePath, err.Error())
+		return errors.E(op, fmt.Sprintf("failed to create directory %s: %s", archivePath, err.Error()))
 	}
 	lock.Unlock()
 	defer archiveFile.Close() // nolint: errcheck
@@ -110,7 +114,7 @@ func create(ctx *context.Context, binaries []artifact.Artifact) error {
 		WithArtifact(binaries[0], ctx.Config.Archive.Replacements).
 		Apply(wrapFolder(ctx.Config.Archive))
 	if err != nil {
-		return err
+		return errors.E(op, err)
 	}
 
 	var a = NewEnhancedArchive(archive.New(archiveFile), wrap)
@@ -118,16 +122,16 @@ func create(ctx *context.Context, binaries []artifact.Artifact) error {
 
 	files, err := findFiles(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to find files to archive: %s", err.Error())
+		return errors.E(op, fmt.Sprintf("failed to find files to archive: %s", err.Error()))
 	}
 	for _, f := range files {
 		if err = a.Add(f, f); err != nil {
-			return fmt.Errorf("failed to add %s to the archive: %s", f, err.Error())
+			return errors.E(op, fmt.Sprintf("failed to add %s to the archive: %s", f, err.Error()))
 		}
 	}
 	for _, binary := range binaries {
 		if err := a.Add(binary.Name, binary.Path); err != nil {
-			return fmt.Errorf("failed to add %s -> %s to the archive: %s", binary.Path, binary.Name, err.Error())
+			return errors.E(op, fmt.Sprintf("failed to add %s -> %s to the archive: %s", binary.Path, binary.Name, err.Error()))
 		}
 	}
 	ctx.Artifacts.Add(artifact.Artifact{
@@ -153,13 +157,14 @@ func wrapFolder(a config.Archive) string {
 }
 
 func skip(ctx *context.Context, binaries []artifact.Artifact) error {
+	var op errors.Op = "archive.create"
 	for _, binary := range binaries {
 		log.WithField("binary", binary.Name).Info("skip archiving")
 		name, err := tmpl.New(ctx).
 			WithArtifact(binary, ctx.Config.Archive.Replacements).
 			Apply(ctx.Config.Archive.NameTemplate)
 		if err != nil {
-			return err
+			return errors.E(op,err)
 		}
 		binary.Type = artifact.UploadableBinary
 		binary.Name = name + binary.Extra["Ext"]
@@ -169,10 +174,11 @@ func skip(ctx *context.Context, binaries []artifact.Artifact) error {
 }
 
 func findFiles(ctx *context.Context) (result []string, err error) {
+	var op errors.Op = "archive.create"
 	for _, glob := range ctx.Config.Archive.Files {
 		files, err := zglob.Glob(glob)
 		if err != nil {
-			return result, fmt.Errorf("globbing failed for pattern %s: %s", glob, err.Error())
+			return result, errors.E(op, fmt.Sprintf("globbing failed for pattern %s: %s", glob, err.Error()))
 		}
 		result = append(result, files...)
 	}
@@ -213,10 +219,11 @@ type EnhancedArchive struct {
 
 // Add adds a file
 func (d EnhancedArchive) Add(name, path string) error {
+	var op errors.Op = "EnhancedArchive.Add"
 	name = strings.Replace(filepath.Join(d.wrap, name), "\\", "/", -1)
 	log.Debugf("adding file: %s as %s", path, name)
 	if _, ok := d.files[name]; ok {
-		return fmt.Errorf("file %s already exists in the archive", name)
+		return errors.E(op, fmt.Sprintf("file %s already exists in the archive", name))
 	}
 	d.files[name] = path
 	return d.a.Add(name, path)
@@ -224,5 +231,6 @@ func (d EnhancedArchive) Add(name, path string) error {
 
 // Close closes the underlying archive
 func (d EnhancedArchive) Close() error {
-	return d.a.Close()
+	var op errors.Op = "EnhancedArchive.Close"
+	return errors.E(op, d.a.Close())
 }

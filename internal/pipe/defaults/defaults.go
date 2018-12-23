@@ -3,9 +3,10 @@
 package defaults
 
 import (
-	log "github.com/sirupsen/logrus"
 	"github.com/goreleaser/goreleaser/pkg/context"
 	"github.com/goreleaser/goreleaser/pkg/defaults"
+	"github.com/goreleaser/goreleaser/pkg/errors"
+	log "github.com/sirupsen/logrus"
 )
 
 // Pipe that sets the defaults
@@ -17,6 +18,7 @@ func (Pipe) String() string {
 
 // Run the pipe
 func (Pipe) Run(ctx *context.Context) error {
+	var op errors.Op = "defaults.Run"
 	if ctx.Config.Dist == "" {
 		ctx.Config.Dist = "dist"
 	}
@@ -24,9 +26,9 @@ func (Pipe) Run(ctx *context.Context) error {
 		ctx.Config.GitHubURLs.Download = "https://github.com"
 	}
 	for _, defaulter := range defaults.Defaulters {
-		log.Debug(defaulter.String())
+		log.Debugf("running %s...", defaulter.String())
 		if err := defaulter.Default(ctx); err != nil {
-			return err
+			return errors.E(op, err)
 		}
 	}
 	return nil
