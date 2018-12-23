@@ -29,7 +29,7 @@ import (
 
 const (
 	// KindPipeSkipped happens when a pipe is skipped.
-	KindPipeSkipped int = iota
+	KindPipeSkipped int = iota + 1
 	// KindBuildError is a build error
 	KindBuildError
 	// KindSemVerError is an error related to semantic versioning

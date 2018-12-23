@@ -145,7 +145,10 @@ func doRelease(ctx *context.Context) error {
 }
 
 func handle(err error) error {
-	if err == nil || errors.IsSkip(err) {
+	if err == nil {
+		return nil
+	}
+	if  errors.IsSkip(err) {
 		log.WithField("ops", errors.Ops(err)).Warn(err)
 		return nil
 	}
