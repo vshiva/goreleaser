@@ -41,7 +41,7 @@ ci: build test lint
 
 # Build a beta version of goreleaser
 build:
-	go build
+	go install
 .PHONY: build
 
 # Generate the static documentation

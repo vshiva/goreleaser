@@ -2,6 +2,8 @@ package client
 
 import (
 	"bytes"
+	"crypto/tls"
+	"net/http"
 	"net/url"
 	"os"
 
@@ -10,7 +12,6 @@ import (
 	"github.com/goreleaser/goreleaser/internal/tmpl"
 	"github.com/goreleaser/goreleaser/pkg/config"
 	"github.com/goreleaser/goreleaser/pkg/context"
-	"golang.org/x/oauth2"
 )
 
 type githubClient struct {
@@ -19,10 +20,15 @@ type githubClient struct {
 
 // NewGitHub returns a github client implementation
 func NewGitHub(ctx *context.Context) (Client, error) {
-	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: ctx.Token},
-	)
-	client := github.NewClient(oauth2.NewClient(ctx, ts))
+	tr := &tokenAuthTransport{
+		token: ctx.Token,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: ctx.Config.GitHubURLs.InsecureSkipTLSVerify},
+		},
+	}
+
+	hc := &http.Client{Transport: tr}
+	client := github.NewClient(hc)
 	if ctx.Config.GitHubURLs.API != "" {
 		api, err := url.Parse(ctx.Config.GitHubURLs.API)
 		if err != nil {
